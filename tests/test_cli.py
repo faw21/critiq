@@ -69,7 +69,7 @@ class TestCLIBasic:
     def test_version(self):
         result = _run_cli(["--version"])
         assert result.exit_code == 0
-        assert "1.4.0" in result.output
+        assert "1.5.0" in result.output
 
     def test_help(self):
         result = _run_cli(["--help"])

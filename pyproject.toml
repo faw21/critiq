@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "critiq"
-version = "1.4.0"
+version = "1.5.0"
 description = "AI-powered local code reviewer — catch issues before you push"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,6 +40,8 @@ Repository = "https://github.com/faw21/critiq"
 critiq = "critiq.cli:main"
 critiq-learn = "critiq.learn:main"
 critiq-report = "critiq.report_cli:main"
+critiq-install = "critiq.hooks:install"
+critiq-uninstall = "critiq.hooks:uninstall"
 
 [project.optional-dependencies]
 watch = [

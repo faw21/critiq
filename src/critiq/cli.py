@@ -44,6 +44,9 @@ def _do_review(
     context_text: str | None,
     raw: bool,
     json_output: bool = False,
+    web_output: bool = False,
+    html_output: str | None = None,
+    port: int = 8421,
     project_config: CritiqConfig | None = None,
     fatal_on_error: bool = True,
 ) -> None:
@@ -152,6 +155,26 @@ def _do_review(
                 if severity_order.index(c.severity.value) <= threshold
             ],
         )
+
+    # --web mode: serve HTML report in browser
+    if web_output:
+        from .web_report import serve_report
+        serve_report(result, port=port)
+        has_critical = any(c.severity.value == "critical" for c in result.comments)
+        if has_critical:
+            sys.exit(1)
+        return
+
+    # --output-html mode: save HTML file
+    if html_output:
+        from .web_report import save_html
+        dest = save_html(result, html_output)
+        console.print(f"[green]HTML report saved:[/green] {dest}")
+        print_review_compact(result, console=console)
+        has_critical = any(c.severity.value == "critical" for c in result.comments)
+        if has_critical:
+            sys.exit(1)
+        return
 
     # Output
     if json_output:
@@ -305,6 +328,27 @@ def _do_review(
     default=False,
     help="Output findings as JSON (for IDE/tool integration)",
 )
+@click.option(
+    "--web",
+    "web_output",
+    is_flag=True,
+    default=False,
+    help="Serve a local HTML report and open in browser",
+)
+@click.option(
+    "--output-html",
+    "html_output",
+    metavar="PATH",
+    default=None,
+    help="Save review results as an HTML report to PATH",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=8421,
+    show_default=True,
+    help="Port for --web server",
+)
 def main(
     mode: str,
     base_branch: str | None,
@@ -322,6 +366,9 @@ def main(
     debounce: float,
     raw: bool,
     json_output: bool,
+    web_output: bool,
+    html_output: str | None,
+    port: int,
 ) -> None:
     """AI-powered local code reviewer — catch issues before you push.
 
@@ -343,6 +390,8 @@ def main(
       critiq --file src/auth.py       # review specific file
       critiq --focus security         # focus on security issues
       critiq --provider ollama        # use local Ollama (no API key)
+      critiq --web                    # open HTML report in browser
+      critiq --output-html report.html  # save HTML report
 
     Teach critiq your project's preferences:
 
@@ -418,5 +467,8 @@ def main(
         context_text=context_text,
         raw=raw,
         json_output=json_output,
+        web_output=web_output,
+        html_output=html_output,
+        port=port,
         project_config=project_config,
     )
