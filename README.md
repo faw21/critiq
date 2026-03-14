@@ -156,7 +156,10 @@ gitbrief . --budget 8000 --clipboard
 # 5. Generate PR description
 gpr
 
-# 6. At release: generate CHANGELOG
+# 6. Review a teammate's PR
+prcat 42                        # AI review of their changes
+
+# 7. At release: generate CHANGELOG
 changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 ```
 
@@ -166,6 +169,7 @@ changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
 - [standup-ai](https://github.com/faw21/standup-ai) — daily standup from git commits
 - [changelog-ai](https://github.com/faw21/changelog-ai) — AI-generated CHANGELOG
+- [prcat](https://github.com/faw21/prcat) — AI reviewer for teammates' pull requests
 - [git-chronicle](https://github.com/faw21/chronicle) — AI git history narrator (understand WHY code changed)
 
 ## License
