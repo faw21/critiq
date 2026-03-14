@@ -1,5 +1,10 @@
 # critiq
 
+[![PyPI version](https://img.shields.io/pypi/v/critiq.svg)](https://pypi.org/project/critiq/)
+[![Python](https://img.shields.io/pypi/pyversions/critiq.svg)](https://pypi.org/project/critiq/)
+[![License: BSL-1.0](https://img.shields.io/badge/License-BSL--1.0-blue.svg)](https://github.com/faw21/critiq/blob/main/LICENSE)
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blue?logo=visual-studio-code)](https://github.com/faw21/critiq-vscode)
+
 **AI-powered local code reviewer — catch issues before you push.**
 
 critiq reads your git diff and runs an AI review *before* you push. It flags security vulnerabilities, bugs, and performance issues with severity ratings so you can fix what matters most.
@@ -278,20 +283,47 @@ Add `.critiq.yaml` to git to share project preferences with your team.
 
 `critiq` exits with code **1** if any CRITICAL issues are found, making it easy to use in pre-push hooks or CI.
 
-## Pre-push Hook
+## Git Hook Integration (v1.5)
 
-Add to `.git/hooks/pre-push` to automatically review before every push:
+Install critiq as a git hook with one command:
 
 ```bash
+# Block commits with CRITICAL issues
+critiq-install
+
+# Or block pushes instead (less disruptive)
+critiq-install --pre-push
+```
+
+That's it. Every `git commit` (or `git push`) will now run an AI review. CRITICAL issues block the operation; everything else is just a warning.
+
+```
+$ git commit -m "add payment handler"
+critiq: Reviewing staged changes...
+
+🚨 [CRITICAL] SQL Injection in process_payment()  src/payments.py  L47
+  User input is directly interpolated into SQL query string.
+
+critiq: ⛔ Commit blocked — CRITICAL issues found above.
+  Fix the issues or bypass with: git commit --no-verify
+```
+
+**Remove the hook anytime:**
+
+```bash
+critiq-uninstall           # remove pre-commit hook
+critiq-uninstall --pre-push  # remove pre-push hook
+```
+
+**Works alongside existing hooks** — if you already have a pre-commit hook, critiq appends to it rather than overwriting.
+
+**Manual hook setup (alternative):**
+
+```bash
+# .git/hooks/pre-commit
 #!/bin/sh
-critiq --diff origin/main --severity critical --compact
+critiq --staged --severity critical --compact
 ```
-
-```bash
-chmod +x .git/hooks/pre-push
-```
-
-Now every `git push` automatically runs a security review. The push is blocked only if CRITICAL issues are found.
 
 ## GitHub Actions (CI)
 
@@ -349,23 +381,24 @@ standup-ai ~/projects/myapp
 # 2. Write code, then review before committing
 critiq                          # AI review of staged changes
 git add -p                      # stage what looks good
+testfix pytest                  # 3. Auto-fix failing tests
 
-# 3. Generate conventional commit message
+# 4. Generate conventional commit message
 gpr --commit-run
 
-# 4. Pack codebase context for LLM-assisted PR review
+# 5. Pack codebase context for LLM-assisted PR review
 gitbrief . --budget 8000 --clipboard
 
-# 5. Generate PR description
+# 6. Generate PR description
 gpr
 
-# 6. Review a teammate's PR
+# 7. Review a teammate's PR
 prcat 42                        # AI review of their changes
 
-# 7. At release: generate CHANGELOG
+# 8. At release: generate CHANGELOG
 changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 
-# 8. Periodically: check code quality trend over time
+# 9. Periodically: check code quality trend over time
 critiq-report --commits 20
 ```
 
@@ -401,7 +434,7 @@ Install from [GitHub](https://github.com/faw21/critiq-vscode) (Marketplace publi
 - [changelog-ai](https://github.com/faw21/changelog-ai) — AI-generated CHANGELOG
 - [prcat](https://github.com/faw21/prcat) — AI reviewer for teammates' pull requests
 - [git-chronicle](https://github.com/faw21/chronicle) — AI git history narrator (understand WHY code changed)
-- [testfix](https://github.com/faw21/testfix) — AI test fixer — automatically fix failing tests
+- [testfix](https://github.com/faw21/testfix) — AI failing test auto-fixer
 
 - [mergefix](https://github.com/faw21/mergefix) — AI merge conflict resolver: fix all conflicts with one command
 

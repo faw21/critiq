@@ -40,6 +40,7 @@ Repository = "https://github.com/faw21/critiq"
 critiq = "critiq.cli:main"
 critiq-learn = "critiq.learn:main"
 critiq-report = "critiq.report_cli:main"
+critiq-scan = "critiq.scan_cli:main"
 critiq-install = "critiq.hooks:install"
 critiq-uninstall = "critiq.hooks:uninstall"
 

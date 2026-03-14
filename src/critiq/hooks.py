@@ -102,22 +102,21 @@ def _install_hook(
 
     if hook_path.exists():
         existing = hook_path.read_text()
-        if marker in existing:
+        if marker in existing and not force:
             console.print(
                 f"[yellow]critiq hook already installed in {hook_path}[/yellow]"
             )
             return
 
-        if not force:
+        if force:
+            hook_path.write_text(hook_content)
+        else:
             console.print(
                 f"[yellow]Existing {hook_name} hook found.[/yellow] "
                 "critiq will be appended to it."
             )
-            # Append to existing hook
             new_content = existing.rstrip() + "\n\n" + hook_content
             hook_path.write_text(new_content)
-        else:
-            hook_path.write_text(hook_content)
     else:
         hook_path.write_text(hook_content)
 

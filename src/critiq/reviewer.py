@@ -389,3 +389,93 @@ def review_diff(
 
     raw = provider.complete(system, user)
     return _parse_review(raw, model_label)
+
+
+def _build_scan_prompt(file_path: str, content: str, context: str | None = None) -> str:
+    """Build the user prompt for a full-file scan (not a diff)."""
+    parts = [f"**File:** `{file_path}`"]
+    if context:
+        parts.append(f"\n**Context:**\n{context}")
+    # Truncate very large files to avoid exceeding context window
+    max_chars = 12_000
+    truncated = content[:max_chars]
+    if len(content) > max_chars:
+        truncated += f"\n... (truncated, {len(content) - max_chars} chars omitted)"
+    parts.append(f"\n**File contents:**\n```\n{truncated}\n```")
+    return "\n".join(parts)
+
+
+def _build_scan_system_prompt(
+    focus: str,
+    config: CritiqConfig | None = None,
+    language_hints: str = "",
+) -> str:
+    """System prompt for full-file scanning (vs git-diff reviewing)."""
+    focus_desc = FOCUS_DESCRIPTIONS.get(focus, FOCUS_DESCRIPTIONS["all"])
+
+    project_section = ""
+    if config and not config.is_empty():
+        parts = []
+        if config.ignore_patterns:
+            ignore_list = "\n".join(f"  - {p}" for p in config.ignore_patterns)
+            parts.append(
+                f"## Project preferences — DO NOT flag these:\n{ignore_list}"
+            )
+        if config.custom_rules:
+            rules_list = "\n".join(f"  - {r}" for r in config.custom_rules)
+            parts.append(
+                f"## Project-specific rules — ALWAYS check these:\n{rules_list}"
+            )
+        if parts:
+            project_section = "\n\n" + "\n\n".join(parts)
+
+    return f"""You are an expert code auditor with deep experience in software engineering, security, and performance optimization.
+
+Your task: audit a source file for issues and provide actionable, specific feedback.
+
+Focus areas: {focus_desc}{project_section}{language_hints}
+
+Output format — respond with EXACTLY this structure:
+
+## Summary
+<1-2 sentence overview of the file's purpose and your overall impression>
+
+## Rating
+<one of: "✅ Clean", "⚠️ Minor issues", "🚨 Needs work">
+
+## Findings
+<For each issue, use this format:>
+
+### [SEVERITY] Title
+**File:** `filename` (line N or lines N-M, or "file-level")
+**Category:** category-name
+**Issue:** Concise description of the problem
+**Fix:** Specific, actionable recommendation
+
+SEVERITY must be one of: CRITICAL, WARNING, INFO, SUGGESTION
+
+Rules:
+- Only flag real issues that affect security, correctness, or maintainability
+- Be specific: include the actual code snippet causing the issue when helpful
+- Prioritize: CRITICAL = serious bug/security hole, WARNING = should fix, INFO = consider fixing, SUGGESTION = nice to have
+- If the file looks clean, say so: "No significant issues found."
+- Keep each finding concise — 3-6 lines max
+- Do NOT add any other sections or commentary outside this structure"""
+
+
+def review_file_content(
+    file_path: str,
+    content: str,
+    provider: LLMProvider,
+    focus: str = "all",
+    context: str | None = None,
+    model_label: str = "unknown",
+    config: CritiqConfig | None = None,
+) -> ReviewResult:
+    """Audit a full source file (not a diff) and return structured results."""
+    language_hints = _build_language_hints([file_path])
+    system = _build_scan_system_prompt(focus, config=config, language_hints=language_hints)
+    user = _build_scan_prompt(file_path, content, context)
+
+    raw = provider.complete(system, user)
+    return _parse_review(raw, model_label)

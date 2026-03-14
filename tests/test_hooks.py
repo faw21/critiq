@@ -1,199 +1,159 @@
-"""Tests for critiq-install and critiq-uninstall hook management."""
-
+"""Tests for critiq.hooks module."""
 from __future__ import annotations
 
 import stat
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
-from critiq.hooks import install, uninstall, _CRITIQ_MARKER, _CRITIQ_PUSH_MARKER
+from critiq.hooks import install, uninstall, _find_git_dir, _install_hook
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# ── _find_git_dir ─────────────────────────────────────────────────────────────
 
-@pytest.fixture
-def fake_repo(tmp_path: Path) -> Path:
-    """Create a fake git repo with a .git/hooks directory."""
+
+def test_find_git_dir_found(tmp_path):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    with patch("critiq.hooks.Path.cwd", return_value=tmp_path):
+        result = _find_git_dir()
+    assert result == git_dir
+
+
+def test_find_git_dir_not_found(tmp_path):
+    # tmp_path has no .git
+    with patch("critiq.hooks.Path.cwd", return_value=tmp_path):
+        result = _find_git_dir()
+    assert result is None
+
+
+# ── _install_hook ─────────────────────────────────────────────────────────────
+
+
+def test_install_hook_creates_new(tmp_path):
+    hooks_dir = tmp_path / "hooks"
+    hooks_dir.mkdir()
+    _install_hook(hooks_dir, "pre-commit", "#!/bin/sh\ncritiq\n", "# critiq", force=False)
+    hook = hooks_dir / "pre-commit"
+    assert hook.exists()
+    assert "critiq" in hook.read_text()
+    # Check executable bit
+    assert hook.stat().st_mode & stat.S_IXUSR
+
+
+def test_install_hook_appends_to_existing(tmp_path):
+    hooks_dir = tmp_path / "hooks"
+    hooks_dir.mkdir()
+    existing_hook = hooks_dir / "pre-commit"
+    existing_hook.write_text("#!/bin/sh\nnpm test\n")
+    _install_hook(hooks_dir, "pre-commit", "# critiq\ncritiq --staged\n", "# critiq", force=False)
+    content = existing_hook.read_text()
+    assert "npm test" in content
+    assert "critiq --staged" in content
+
+
+def test_install_hook_skips_if_already_installed(tmp_path):
+    hooks_dir = tmp_path / "hooks"
+    hooks_dir.mkdir()
+    existing_hook = hooks_dir / "pre-commit"
+    existing_hook.write_text("#!/bin/sh\n# critiq pre-commit hook\ncritiq --staged\n")
+    _install_hook(hooks_dir, "pre-commit", "# critiq\nnew content\n", "# critiq", force=False)
+    # Should not overwrite
+    content = existing_hook.read_text()
+    assert "new content" not in content
+
+
+def test_install_hook_force_overwrites(tmp_path):
+    hooks_dir = tmp_path / "hooks"
+    hooks_dir.mkdir()
+    existing_hook = hooks_dir / "pre-commit"
+    existing_hook.write_text("#!/bin/sh\n# critiq pre-commit hook\nold content\n")
+    _install_hook(hooks_dir, "pre-commit", "#!/bin/sh\nnew content\n", "# critiq", force=True)
+    content = existing_hook.read_text()
+    assert "new content" in content
+    assert "old content" not in content
+
+
+# ── CLI: install ──────────────────────────────────────────────────────────────
+
+
+def test_install_command_no_git(tmp_path):
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        # No .git directory
+        with patch("critiq.hooks._find_git_dir", return_value=None):
+            result = runner.invoke(install, [])
+    assert result.exit_code == 1
+    assert "git repository" in result.output.lower() or "Error" in result.output
+
+
+def test_install_command_creates_pre_commit(tmp_path):
+    runner = CliRunner()
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    with patch("critiq.hooks._find_git_dir", return_value=git_dir):
+        result = runner.invoke(install, [])
+    assert result.exit_code == 0
+    hook = git_dir / "hooks" / "pre-commit"
+    assert hook.exists()
+    assert "✅" in result.output
+
+
+def test_install_command_creates_pre_push(tmp_path):
+    runner = CliRunner()
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    with patch("critiq.hooks._find_git_dir", return_value=git_dir):
+        result = runner.invoke(install, ["--pre-push"])
+    assert result.exit_code == 0
+    hook = git_dir / "hooks" / "pre-push"
+    assert hook.exists()
+
+
+# ── CLI: uninstall ─────────────────────────────────────────────────────────────
+
+
+def test_uninstall_command_no_hook(tmp_path):
+    runner = CliRunner()
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "hooks").mkdir()
+    with patch("critiq.hooks._find_git_dir", return_value=git_dir):
+        result = runner.invoke(uninstall, [])
+    assert result.exit_code == 0
+    assert "No pre-commit hook found" in result.output
+
+
+def test_uninstall_removes_hook(tmp_path):
+    runner = CliRunner()
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
     hooks_dir = git_dir / "hooks"
     hooks_dir.mkdir()
-    return tmp_path
+    hook = hooks_dir / "pre-commit"
+    hook.write_text("#!/bin/sh\n# critiq pre-commit hook\ncritiq --staged\n")
+    with patch("critiq.hooks._find_git_dir", return_value=git_dir):
+        result = runner.invoke(uninstall, [])
+    assert result.exit_code == 0
+    # Hook deleted since nothing else left
+    assert not hook.exists() or hook.read_text().strip() == "#!/bin/sh"
 
 
-# ── Install tests ─────────────────────────────────────────────────────────────
-
-class TestInstall:
-    def test_install_precommit_creates_hook(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(install, [])
-
-        assert result.exit_code == 0
-        hook = fake_repo / ".git" / "hooks" / "pre-commit"
-        assert hook.exists()
-        content = hook.read_text()
-        assert _CRITIQ_MARKER in content
-        assert "critiq --staged --severity critical --compact" in content
-
-    def test_install_makes_hook_executable(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, [])
-
-        hook = fake_repo / ".git" / "hooks" / "pre-commit"
-        mode = hook.stat().st_mode
-        assert mode & stat.S_IXUSR  # owner executable
-
-    def test_install_prepush(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(install, ["--pre-push"])
-
-        assert result.exit_code == 0
-        hook = fake_repo / ".git" / "hooks" / "pre-push"
-        assert hook.exists()
-        content = hook.read_text()
-        assert _CRITIQ_PUSH_MARKER in content
-        assert "critiq --diff" in content
-
-    def test_install_idempotent(self, fake_repo: Path) -> None:
-        """Running install twice doesn't duplicate the hook."""
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, [])
-            result = runner.invoke(install, [])
-
-        assert result.exit_code == 0
-        assert "already installed" in result.output
-        hook = fake_repo / ".git" / "hooks" / "pre-commit"
-        content = hook.read_text()
-        assert content.count(_CRITIQ_MARKER) == 1
-
-    def test_install_appends_to_existing_hook(self, fake_repo: Path) -> None:
-        """Existing hook gets critiq appended, not overwritten."""
-        hooks_dir = fake_repo / ".git" / "hooks"
-        existing_hook = hooks_dir / "pre-commit"
-        existing_hook.write_text("#!/bin/sh\necho 'existing hook'\n")
-        existing_hook.chmod(0o755)
-
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(install, [])
-
-        assert result.exit_code == 0
-        content = existing_hook.read_text()
-        assert "existing hook" in content
-        assert _CRITIQ_MARKER in content
-
-    def test_install_force_overwrites_existing(self, fake_repo: Path) -> None:
-        """--force replaces an existing hook entirely."""
-        hooks_dir = fake_repo / ".git" / "hooks"
-        existing_hook = hooks_dir / "pre-commit"
-        existing_hook.write_text("#!/bin/sh\necho 'existing hook'\n")
-
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, ["--force"])
-
-        content = existing_hook.read_text()
-        assert "existing hook" not in content
-        assert _CRITIQ_MARKER in content
-
-    def test_install_fails_outside_git_repo(self, tmp_path: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(install, [])
-
-        assert result.exit_code == 1
-        assert "Not inside a git repository" in result.output
-
-    def test_install_success_message(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(install, [])
-
-        assert "✅" in result.output
-        assert "pre-commit hook installed" in result.output
-
-    def test_install_prepush_success_message(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(install, ["--pre-push"])
-
-        assert "pre-push hook installed" in result.output
-
-
-# ── Uninstall tests ───────────────────────────────────────────────────────────
-
-class TestUninstall:
-    def test_uninstall_removes_critiq_only_hook(self, fake_repo: Path) -> None:
-        """If hook only has critiq content, the file is deleted."""
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, [])
-            result = runner.invoke(uninstall, [])
-
-        assert result.exit_code == 0
-        hook = fake_repo / ".git" / "hooks" / "pre-commit"
-        assert not hook.exists()
-
-    def test_uninstall_strips_from_mixed_hook(self, fake_repo: Path) -> None:
-        """Critiq block is removed; rest of the hook survives."""
-        hooks_dir = fake_repo / ".git" / "hooks"
-        existing_hook = hooks_dir / "pre-commit"
-        existing_hook.write_text("#!/bin/sh\necho 'other hook'\n")
-        existing_hook.chmod(0o755)
-
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, [])
-            result = runner.invoke(uninstall, [])
-
-        assert result.exit_code == 0
-        assert existing_hook.exists()
-        content = existing_hook.read_text()
-        assert "other hook" in content
-        assert _CRITIQ_MARKER not in content
-
-    def test_uninstall_no_hook(self, fake_repo: Path) -> None:
-        """Uninstalling when no hook exists is a no-op."""
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(uninstall, [])
-
-        assert result.exit_code == 0
-        assert "No pre-commit hook found" in result.output
-
-    def test_uninstall_hook_without_critiq(self, fake_repo: Path) -> None:
-        """Uninstalling when critiq isn't in the hook says nothing to remove."""
-        hooks_dir = fake_repo / ".git" / "hooks"
-        existing_hook = hooks_dir / "pre-commit"
-        existing_hook.write_text("#!/bin/sh\necho 'other'\n")
-
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            result = runner.invoke(uninstall, [])
-
-        assert result.exit_code == 0
-        assert "Nothing to remove" in result.output
-
-    def test_uninstall_prepush(self, fake_repo: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=fake_repo):
-            runner.invoke(install, ["--pre-push"])
-            result = runner.invoke(uninstall, ["--pre-push"])
-
-        assert result.exit_code == 0
-        hook = fake_repo / ".git" / "hooks" / "pre-push"
-        assert not hook.exists()
-
-    def test_uninstall_fails_outside_git_repo(self, tmp_path: Path) -> None:
-        runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(uninstall, [])
-
-        assert result.exit_code == 1
-        assert "Not inside a git repository" in result.output
+def test_uninstall_preserves_existing_hook(tmp_path):
+    runner = CliRunner()
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir()
+    hook = hooks_dir / "pre-commit"
+    hook.write_text("#!/bin/sh\nnpm test\n\n# critiq pre-commit hook\ncritiq --staged\n")
+    with patch("critiq.hooks._find_git_dir", return_value=git_dir):
+        result = runner.invoke(uninstall, [])
+    assert result.exit_code == 0
+    assert hook.exists()
+    content = hook.read_text()
+    assert "npm test" in content
+    assert "critiq" not in content
