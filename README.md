@@ -152,6 +152,53 @@ pip install 'critiq[watch]'   # adds watchfiles for inotify/FSEvents support
 
 This is useful when you're iterating on a feature: stage your changes and immediately get feedback, without leaving the terminal.
 
+## Trend Report (`critiq-report`)
+
+`critiq-report` analyzes your commit history and shows how code quality has changed over time.
+
+```
+$ critiq-report --commits 10
+
+╭─────────────────────────────── 🔍 critiq report ───────────────────────────────╮
+│ Analyzed 10 commits  Total issues: 87  Trend: 📈 Improving                     │
+╰─────────────────────────────────────────────────────────────────────────────────╯
+
+                              Issues per Commit
+ Commit   Message                                    Author    🔴C  🟡W  🔵I  💡S
+ a1b2c3…  fix: resolve race condition in worker      Alice Dev   ·    1    2    ·
+ d4e5f6…  feat: add payment processing module        Bob Dev     2    3    5    1
+ ...
+
+  Issue trend (oldest → newest): █▇▆▅▃▂▂▁▁▁
+
+ 🔥 Hotspot Files (repeatedly flagged)
+ File                    Times flagged
+ src/payments/handler.py   4  ████████
+ src/auth/session.py        3  ██████
+```
+
+```bash
+# Analyze last 10 commits (default, uses free local Ollama)
+critiq-report
+
+# Analyze more commits
+critiq-report --commits 30
+
+# Since a release tag
+critiq-report --since v1.0.0
+
+# Higher-quality reviews with Claude
+critiq-report --provider claude
+
+# Force re-review (skip cache)
+critiq-report --no-cache
+
+# Save as Markdown
+critiq-report --output quality-report.md
+```
+
+Results are cached in `.critiq-report/` (add to `.gitignore`). Re-runs are instant.
+
 ## Project Preferences (`critiq-learn`)
 
 Teach critiq your project's conventions so it stops flagging things you don't care about — and always checks the things you do.
@@ -301,6 +348,9 @@ prcat 42                        # AI review of their changes
 
 # 7. At release: generate CHANGELOG
 changelog-ai --from v0.1.0 --prepend CHANGELOG.md
+
+# 8. Periodically: check code quality trend over time
+critiq-report --commits 20
 ```
 
 ## Related Tools
