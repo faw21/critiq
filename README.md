@@ -37,7 +37,7 @@ Reviewing staged changes · +28/-6 lines · src/auth.py, src/db.py
 pip install critiq
 ```
 
-**VS Code extension:** install [critiq for VS Code](https://github.com/faw21/critiq-vscode) for inline diagnostics, status bar, and `Cmd+Shift+R` shortcut.
+**VS Code extension:** install [critiq for VS Code](https://github.com/faw21/critiq-vscode) — inline ghost-text hints, gutter icons, tree view, and `Cmd+Shift+R` shortcut.
 
 Set your API key (or use Ollama for zero-cost local review):
 
@@ -369,9 +369,31 @@ changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 critiq-report --commits 20
 ```
 
+## VS Code Extension
+
+[critiq-vscode](https://github.com/faw21/critiq-vscode) brings critiq directly into your editor:
+
+```
+src/auth.py
+  cursor.execute(query % params)   ⚡ SQL Injection vulnerability    ← ghost text inline
+  ↑                                                                   ← red gutter circle
+```
+
+**Features (v1.2.0):**
+- 🔴 **Gutter icons** — colored circles on flagged lines (red/yellow/blue by severity)
+- 📝 **Inline ghost text** — issue title shown at end of each flagged line (like GitHub Copilot hints)
+- 🌡️ **Overview ruler** — colored marks in the scrollbar for bird's-eye view of all issues
+- 🌳 **Findings tree** — sidebar panel grouping all issues by file with click-to-navigate
+- 🔧 **Code actions** — lightbulb on flagged lines → "Fix with critiq" (runs `--fix-all` instantly)
+- 📊 **Status bar** — shows live issue count; click to re-run review
+- ⌨️ **Keyboard shortcut** — `Cmd+Shift+R` (Mac) / `Ctrl+Shift+R` (Windows/Linux)
+- 🔄 **Auto-review** — optional trigger on file save
+
+Install from [GitHub](https://github.com/faw21/critiq-vscode) (Marketplace publishing coming soon).
+
 ## Related Tools
 
-- [critiq-vscode](https://github.com/faw21/critiq-vscode) — VS Code extension: inline diagnostics + status bar + `Cmd+Shift+R`
+- [critiq-vscode](https://github.com/faw21/critiq-vscode) — VS Code extension: gutter icons + inline hints + tree view + auto-fix
 - [critiq-action](https://github.com/faw21/critiq-action) — GitHub Action: run critiq in CI on every PR
 - [gitbrief](https://github.com/faw21/gitbrief) — git-history-aware context packer for LLMs
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
