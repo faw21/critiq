@@ -81,3 +81,40 @@ def test_get_provider_ollama_real():
     result = provider.complete(SYSTEM, USER)
     assert isinstance(result, str)
     assert len(result) > 0
+
+
+# ── Fix integration ───────────────────────────────────────────────────────────
+
+@pytest.mark.skipif(not has_anthropic, reason="ANTHROPIC_API_KEY not set")
+def test_generate_fix_real_claude():
+    """Real LLM fix generation: Claude fixes a SQL injection."""
+    from critiq.fixer import generate_fix
+    from critiq.reviewer import ReviewComment, Severity
+
+    provider = ClaudeProvider(model="claude-haiku-4-5-20251001")
+    file_content = (
+        "def get_user(db, username):\n"
+        "    query = f\"SELECT * FROM users WHERE name='{username}'\"\n"
+        "    return db.execute(query).fetchone()\n"
+    )
+    issues = [ReviewComment(
+        severity=Severity.CRITICAL,
+        file="src/auth.py",
+        line="L2",
+        title="SQL Injection",
+        body=(
+            "**Issue:** User input directly interpolated into SQL query.\n"
+            "**Fix:** Use parameterized queries: "
+            "db.execute('SELECT * FROM users WHERE name=?', (username,))"
+        ),
+        category="security",
+    )]
+
+    fixed = generate_fix("src/auth.py", file_content, issues, provider)
+
+    assert isinstance(fixed, str)
+    assert len(fixed) > 0
+    assert "```" not in fixed  # no markdown fences
+    # The fix should use parameterized queries
+    assert "?" in fixed or "parameterized" in fixed.lower() or "format" not in fixed.lower()
+    print(f"\n[Fix] Generated:\n{fixed}")

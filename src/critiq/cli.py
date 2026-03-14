@@ -9,6 +9,7 @@ import click
 from rich.console import Console
 
 from . import __version__
+from .fixer import interactive_fix
 from .formatter import print_review, print_review_compact
 from .git_utils import (
     get_branch_diff,
@@ -17,7 +18,7 @@ from .git_utils import (
     is_git_repo,
 )
 from .providers import get_provider
-from .reviewer import review_diff
+from .reviewer import Severity, review_diff
 
 console = Console()
 
@@ -73,6 +74,24 @@ def _abort(message: str) -> None:
     help="Compact output (no panels)",
 )
 @click.option(
+    "--fix",
+    is_flag=True,
+    default=False,
+    help="Interactively fix CRITICAL and WARNING issues after review",
+)
+@click.option(
+    "--fix-all",
+    is_flag=True,
+    default=False,
+    help="Automatically apply all fixes without prompting",
+)
+@click.option(
+    "--fix-severity",
+    type=click.Choice(["critical", "warning", "info", "suggestion"], case_sensitive=False),
+    default=None,
+    help="Minimum severity to fix (default: warning when --fix is used)",
+)
+@click.option(
     "--provider",
     type=click.Choice(["claude", "openai", "ollama"], case_sensitive=False),
     default="claude",
@@ -106,6 +125,9 @@ def main(
     focus: str,
     severity: str | None,
     compact: bool,
+    fix: bool,
+    fix_all: bool,
+    fix_severity: str | None,
     provider: str,
     model: str | None,
     context_text: str | None,
@@ -116,16 +138,26 @@ def main(
     By default, reviews your staged changes. Use --diff BRANCH to review
     all changes vs a branch, or --file PATH to review a specific file.
 
+    Use --fix to interactively fix CRITICAL and WARNING issues after review.
+    Use --fix-all to apply all fixes automatically (no prompts).
+
     Examples:
 
       critiq                          # review staged changes
+      critiq --fix                    # review then interactively fix issues
+      critiq --fix-all                # review and auto-apply all fixes
       critiq --diff main              # review vs main branch
+      critiq --diff main --fix        # review vs main, then fix
       critiq --file src/auth.py       # review specific file
       critiq --focus security         # focus on security issues
       critiq --provider ollama        # use local Ollama (no API key)
     """
     if not is_git_repo():
         _abort("Not inside a git repository.")
+
+    # --fix-all implies --fix
+    if fix_all:
+        fix = True
 
     # Determine what to diff
     try:
@@ -221,6 +253,29 @@ def main(
         print_review_compact(result, console=console)
     else:
         print_review(result, console=console)
+
+    # --fix mode: interactively fix issues
+    if fix and result.comments:
+        # Determine severity filter for fixing
+        severity_filter: set[Severity] | None = None
+        if fix_severity:
+            severity_order_list = ["critical", "warning", "info", "suggestion"]
+            threshold = severity_order_list.index(fix_severity.lower())
+            severity_filter = {
+                Severity(s)
+                for s in severity_order_list[:threshold + 1]
+            }
+
+        try:
+            interactive_fix(
+                result=result,
+                provider=llm,
+                console=console,
+                fix_all=fix_all,
+                severity_filter=severity_filter,
+            )
+        except KeyboardInterrupt:
+            console.print("\n[dim]Fix interrupted.[/dim]")
 
     # Exit code: non-zero if critical issues found
     has_critical = any(c.severity.value == "critical" for c in result.comments)

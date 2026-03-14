@@ -165,17 +165,24 @@ def _parse_review(raw: str, model: str) -> ReviewResult:
         finding_sections.append(current)
 
     for section in finding_sections:
-        header = section[0]  # "### [CRITICAL] Title"
+        header = section[0]  # "### [CRITICAL] Title" or "### CRITICAL: Title"
         # Parse header
         title = header.lstrip("#").strip()
         severity = Severity.INFO
+        import re as _re
         for s in Severity:
-            if f"[{s.value.upper()}]" in title.upper():
+            sv = s.value.upper()
+            # Match both "[CRITICAL] Title" and "CRITICAL: Title" formats
+            if f"[{sv}]" in title.upper():
                 severity = s
-                # Remove the [SEVERITY] tag while preserving original case of title
-                import re as _re
                 title = _re.sub(
-                    rf"\[{s.value.upper()}\]\s*", "", title, flags=_re.IGNORECASE
+                    rf"\[{sv}\]\s*", "", title, flags=_re.IGNORECASE
+                ).strip()
+                break
+            elif _re.match(rf"^{sv}\s*[:\-]\s*", title, flags=_re.IGNORECASE):
+                severity = s
+                title = _re.sub(
+                    rf"^{sv}\s*[:\-]\s*", "", title, flags=_re.IGNORECASE
                 ).strip()
                 break
 

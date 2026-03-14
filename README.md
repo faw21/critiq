@@ -51,8 +51,17 @@ export OPENAI_API_KEY=your-key      # or OpenAI
 # Review staged changes (most common — run before git push)
 critiq
 
+# Review and interactively fix issues
+critiq --fix
+
+# Review and automatically apply all fixes (no prompts)
+critiq --fix-all
+
 # Review all changes vs main branch
 critiq --diff main
+
+# Review vs main, then fix what's found
+critiq --diff main --fix
 
 # Review a specific file
 critiq --file src/auth.py
@@ -78,6 +87,47 @@ critiq --provider ollama --model llama3.2
 # Use OpenAI
 critiq --provider openai --model gpt-4o
 ```
+
+## Auto-Fix (v1.0)
+
+`critiq --fix` closes the review loop: find issues **and** fix them in one command.
+
+```
+$ critiq --fix
+
+🚨 [CRITICAL] SQL Injection in login()      src/auth.py  line 6
+🚨 [CRITICAL] Plaintext Password Storage    src/auth.py  line 22
+⚠️  [WARNING]  Weak Token Generation         src/auth.py  line 10
+
+Fix 3 issue(s) in src/auth.py? (a=fix all / s=select / n=skip)  > a
+
+Generating fix... ✓
+
+╭─── Changes to src/auth.py ─────────────────────────────────────────╮
+│ - query = f"SELECT * FROM users WHERE name='{username}'"           │
+│ + query = "SELECT * FROM users WHERE name=? AND password=?"        │
+│ + db.execute(query, (username, password))                           │
+│                                                                     │
+│ - return {"token": hashlib.md5(username.encode()).hexdigest()}      │
+│ + return {"token": secrets.token_urlsafe(32)}                      │
+╰─────────────────────────────────────────────────────────────────────╯
+
+Apply this fix? [Y/n]  y
+✅ Applied  (backup: src/auth.py.critiq.bak)
+```
+
+**How it works:**
+1. critiq reviews your diff and finds issues
+2. For each file with CRITICAL/WARNING issues, it asks: fix all / select / skip
+3. The AI reads the full file + all issues and generates a fixed version
+4. You see a colorized diff before applying
+5. Original files are backed up as `.critiq.bak`
+6. Run `git diff` to review all changes before committing
+
+**Flags:**
+- `--fix` — interactive mode (prompts for each file)
+- `--fix-all` — auto-apply all fixes without prompting
+- `--fix-severity warning` — also fix WARNING issues (default: CRITICAL + WARNING)
 
 ## Focus Areas
 
