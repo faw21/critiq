@@ -412,7 +412,7 @@ src/auth.py
   ↑                                                                   ← red gutter circle
 ```
 
-**Features (v1.2.0):**
+**Features (v1.3.0):**
 - 🔴 **Gutter icons** — colored circles on flagged lines (red/yellow/blue by severity)
 - 📝 **Inline ghost text** — issue title shown at end of each flagged line (like GitHub Copilot hints)
 - 🌡️ **Overview ruler** — colored marks in the scrollbar for bird's-eye view of all issues
@@ -422,12 +422,20 @@ src/auth.py
 - ⌨️ **Keyboard shortcut** — `Cmd+Shift+R` (Mac) / `Ctrl+Shift+R` (Windows/Linux)
 - 🔄 **Auto-review** — optional trigger on file save
 
-Install from [GitHub](https://github.com/faw21/critiq-vscode) (Marketplace publishing coming soon).
+**Install:**
+```bash
+# Option 1: Download the .vsix from the latest release
+curl -L https://github.com/faw21/critiq-vscode/releases/latest/download/critiq-1.3.0.vsix -o critiq.vsix
+code --install-extension critiq.vsix
+
+# Option 2: Marketplace (coming soon)
+```
 
 ## Related Tools
 
 - [critiq-vscode](https://github.com/faw21/critiq-vscode) — VS Code extension: gutter icons + inline hints + tree view + auto-fix
 - [critiq-action](https://github.com/faw21/critiq-action) — GitHub Action: run critiq in CI on every PR
+- [mergefix](https://github.com/faw21/mergefix) — AI-powered merge conflict resolver (runs after `git merge`)
 - [gitbrief](https://github.com/faw21/gitbrief) — git-history-aware context packer for LLMs
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
 - [standup-ai](https://github.com/faw21/standup-ai) — daily standup from git commits
