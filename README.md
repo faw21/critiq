@@ -401,6 +401,9 @@ Install from [GitHub](https://github.com/faw21/critiq-vscode) (Marketplace publi
 - [changelog-ai](https://github.com/faw21/changelog-ai) — AI-generated CHANGELOG
 - [prcat](https://github.com/faw21/prcat) — AI reviewer for teammates' pull requests
 - [git-chronicle](https://github.com/faw21/chronicle) — AI git history narrator (understand WHY code changed)
+- [testfix](https://github.com/faw21/testfix) — AI test fixer — automatically fix failing tests
+
+- [mergefix](https://github.com/faw21/mergefix) — AI merge conflict resolver: fix all conflicts with one command
 
 ## License
 
