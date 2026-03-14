@@ -118,3 +118,41 @@ def test_generate_fix_real_claude():
     # The fix should use parameterized queries
     assert "?" in fixed or "parameterized" in fixed.lower() or "format" not in fixed.lower()
     print(f"\n[Fix] Generated:\n{fixed}")
+
+
+# ── critiq-report integration ─────────────────────────────────────────────────
+
+
+def test_review_commit_real_ollama():
+    """Real: review a commit diff using local Ollama."""
+    import tempfile
+    from pathlib import Path
+
+    from critiq.providers import OllamaProvider
+    from critiq.report import CommitInfo, get_commit_history, review_commit
+
+    # Use the critiq repo itself for a real commit to review
+    repo_path = Path(__file__).parent.parent
+    history = get_commit_history(n=1, cwd=repo_path)
+
+    if not history:
+        pytest.skip("No commits found in test repo")
+
+    commit = history[0]
+    provider = OllamaProvider(model="qwen2.5:1.5b")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = review_commit(
+            commit=commit,
+            provider=provider,
+            cwd=repo_path,
+            use_cache=False,
+            cache_dir=Path(tmpdir),
+        )
+
+    assert isinstance(result.critical, int)
+    assert isinstance(result.warning, int)
+    assert isinstance(result.summary, str)
+    assert result.skipped is False or result.skipped is True  # either is valid
+    total = result.critical + result.warning + result.info + result.suggestion
+    print(f"\n[report] commit={commit.short_hash} total_issues={total} summary={result.summary[:60]}")

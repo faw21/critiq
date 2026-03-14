@@ -9,3 +9,4 @@ dist/
 *.egg-info/
 build/
 .DS_Store
+.critiq-report/
