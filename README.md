@@ -2,6 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/critiq.svg)](https://pypi.org/project/critiq/)
 [![Python](https://img.shields.io/pypi/pyversions/critiq.svg)](https://pypi.org/project/critiq/)
+[![Tests](https://github.com/faw21/critiq/actions/workflows/tests.yml/badge.svg)](https://github.com/faw21/critiq/actions/workflows/tests.yml)
 [![License: BSL-1.0](https://img.shields.io/badge/License-BSL--1.0-blue.svg)](https://github.com/faw21/critiq/blob/main/LICENSE)
 [![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blue?logo=visual-studio-code)](https://github.com/faw21/critiq-vscode)
 
