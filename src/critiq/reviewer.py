@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 from .config import CritiqConfig
 from .git_utils import DiffResult
@@ -15,6 +16,106 @@ class Severity(str, Enum):
     WARNING = "warning"
     INFO = "info"
     SUGGESTION = "suggestion"
+
+
+# Language-specific antipatterns injected into the review prompt
+LANGUAGE_RULES: dict[str, list[str]] = {
+    "python": [
+        "Mutable default arguments (e.g. `def f(x=[])`) — default value is shared across calls",
+        "Bare `except:` without exception type — catches SystemExit and KeyboardInterrupt",
+        "`== None` or `!= None` instead of `is None` / `is not None`",
+        "Missing type annotations on public function signatures",
+        "String formatting with `%` or `.format()` when f-strings are available (Python 3.6+)",
+        "`print()` debug statements left in production code",
+        "Using `global` or `nonlocal` to mutate shared state",
+        "Catching and re-raising exceptions without `raise ... from e` (loses traceback chain)",
+        "`time.sleep()` in async code (blocks the event loop; use `asyncio.sleep()`)",
+        "Shadowing built-ins: `list`, `dict`, `id`, `type`, `input`, etc.",
+    ],
+    "javascript": [
+        "`var` instead of `let` or `const` — `var` has function scope and hoisting issues",
+        "Loose equality `==` instead of strict `===` (coercion bugs)",
+        "Async functions without try/catch — unhandled Promise rejections",
+        "Mutating function arguments directly (side effects)",
+        "`console.log()` / `console.debug()` debug statements left in code",
+        "Callback hell (deeply nested callbacks) — prefer async/await",
+        "Missing `await` on async calls inside async functions",
+        "Prototype pollution risk when merging untrusted objects",
+    ],
+    "typescript": [
+        "`any` type — defeats TypeScript's type safety; use `unknown` with type narrowing",
+        "Non-null assertion `!` overuse — causes runtime errors if assumption is wrong",
+        "`@ts-ignore` or `@ts-expect-error` without a clear justification comment",
+        "Type assertions `as T` instead of proper type guards",
+        "Missing `readonly` on properties that should be immutable",
+        "Optional chaining `?.` used without considering the undefined case downstream",
+        "`console.log()` debug statements left in code",
+    ],
+    "go": [
+        "Ignored error return values (`err` assigned but never checked)",
+        "`defer` inside a loop — only runs at function exit, not loop iteration exit",
+        "`context.TODO()` or `context.Background()` passed deep into functions that should accept context",
+        "Goroutine leak: goroutines started without a cancel/done channel or WaitGroup",
+        "Naked return in functions longer than 5 lines — reduces readability",
+        "`time.Sleep` in production code without justification",
+        "Panic in library code (should return error instead)",
+        "Unused `err` variable shadowed by `:=` in nested scope",
+    ],
+    "rust": [
+        "`.unwrap()` or `.expect()` in non-test code without justification — use `?` or proper match",
+        "`.clone()` on large data structures — check if a reference would work",
+        "`panic!()` in library code — should return `Result` or `Option`",
+        "`unsafe` block without a clear `// SAFETY:` comment explaining invariants",
+        "`.to_string()` in hot paths — prefer `format!` sparingly or avoid allocation",
+        "`unwrap_or_default()` masking unexpected None/Err — verify it's intentional",
+    ],
+}
+
+# File extension → language key
+EXT_TO_LANG: dict[str, str] = {
+    ".py": "python",
+    ".pyw": "python",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".mts": "typescript",
+    ".cts": "typescript",
+    ".go": "go",
+    ".rs": "rust",
+}
+
+
+def _detect_languages(files: list[str]) -> set[str]:
+    """Return the set of languages detected from file extensions."""
+    langs: set[str] = set()
+    for f in files:
+        ext = Path(f).suffix.lower()
+        lang = EXT_TO_LANG.get(ext)
+        if lang:
+            langs.add(lang)
+    return langs
+
+
+def _build_language_hints(files: list[str]) -> str:
+    """Build a language-specific antipattern section for the prompt."""
+    langs = _detect_languages(files)
+    if not langs:
+        return ""
+
+    parts = []
+    for lang in sorted(langs):
+        rules = LANGUAGE_RULES.get(lang, [])
+        if rules:
+            rule_list = "\n".join(f"  - {r}" for r in rules)
+            parts.append(f"**{lang.capitalize()} — watch for these antipatterns:**\n{rule_list}")
+
+    if not parts:
+        return ""
+
+    return "\n\n## Language-specific checks\n" + "\n\n".join(parts)
 
 
 @dataclass
@@ -49,7 +150,11 @@ FOCUS_DESCRIPTIONS = {
 }
 
 
-def _build_system_prompt(focus: str, config: CritiqConfig | None = None) -> str:
+def _build_system_prompt(
+    focus: str,
+    config: CritiqConfig | None = None,
+    language_hints: str = "",
+) -> str:
     focus_desc = FOCUS_DESCRIPTIONS.get(focus, FOCUS_DESCRIPTIONS["all"])
 
     # Build project-specific additions
@@ -73,7 +178,7 @@ def _build_system_prompt(focus: str, config: CritiqConfig | None = None) -> str:
 
 Your task: review a git diff and provide actionable, specific feedback.
 
-Focus areas: {focus_desc}{project_section}
+Focus areas: {focus_desc}{project_section}{language_hints}
 
 Output format — respond with EXACTLY this structure:
 
@@ -258,7 +363,8 @@ def review_diff(
     config: CritiqConfig | None = None,
 ) -> ReviewResult:
     """Run AI review on a diff and return structured results."""
-    system = _build_system_prompt(focus, config=config)
+    language_hints = _build_language_hints(diff.files_changed)
+    system = _build_system_prompt(focus, config=config, language_hints=language_hints)
     user = _build_user_prompt(diff, context)
 
     raw = provider.complete(system, user)

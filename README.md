@@ -91,6 +91,20 @@ critiq --provider ollama --model llama3.2
 critiq --provider openai --model gpt-4o
 ```
 
+## Language-Aware Reviews (v1.3)
+
+critiq automatically detects the language of your changed files and injects **language-specific antipattern checks** into every review — no flags needed.
+
+| Language | Examples of what critiq checks |
+|---|---|
+| **Python** | Mutable default args, bare `except:`, `== None` vs `is None`, shadowed builtins, `print()` debug statements |
+| **JavaScript** | `var` vs `let/const`, loose `==`, unhandled Promise rejections, missing `await`, callback hell |
+| **TypeScript** | `any` type, non-null assertion `!` overuse, `@ts-ignore` without justification, type assertions |
+| **Go** | Ignored error returns, `defer` in loops, goroutine leaks, `panic()` in library code |
+| **Rust** | `.unwrap()` without justification, `panic!()` in library code, `unsafe` without `// SAFETY:` comment |
+
+This is on top of the general review — critiq catches both universal issues and language-specific footguns.
+
 ## Auto-Fix (v1.0)
 
 `critiq --fix` closes the review loop: find issues **and** fix them in one command.

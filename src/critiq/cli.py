@@ -113,9 +113,10 @@ def _do_review(
     model_label = f"{provider}/{model or 'default'}"
 
     if raw:
-        from .reviewer import _build_system_prompt, _build_user_prompt
+        from .reviewer import _build_language_hints, _build_system_prompt, _build_user_prompt
 
-        system = _build_system_prompt(focus, config=project_config)
+        language_hints = _build_language_hints(diff.files_changed)
+        system = _build_system_prompt(focus, config=project_config, language_hints=language_hints)
         user = _build_user_prompt(diff, context_text)
         raw_output = llm.complete(system, user)
         console.print(raw_output)

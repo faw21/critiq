@@ -10,8 +10,10 @@ from critiq.git_utils import DiffResult
 from critiq.reviewer import (
     ReviewResult,
     Severity,
+    _build_language_hints,
     _build_system_prompt,
     _build_user_prompt,
+    _detect_languages,
     _parse_review,
     _parse_severity,
     review_diff,
@@ -57,6 +59,72 @@ The change replaces a safe authentication call with raw SQL, introducing a criti
 **Issue:** The original `authenticate()` call was removed; this may bypass existing auth logic.
 **Fix:** Understand why this was removed and ensure auth requirements are still met.
 """
+
+
+class TestDetectLanguages:
+    def test_python_files(self):
+        assert _detect_languages(["src/foo.py", "bar.pyw"]) == {"python"}
+
+    def test_javascript_files(self):
+        assert _detect_languages(["app.js", "index.mjs"]) == {"javascript"}
+
+    def test_typescript_files(self):
+        assert _detect_languages(["app.ts", "comp.tsx"]) == {"typescript"}
+
+    def test_go_files(self):
+        assert _detect_languages(["main.go"]) == {"go"}
+
+    def test_rust_files(self):
+        assert _detect_languages(["lib.rs"]) == {"rust"}
+
+    def test_mixed_languages(self):
+        langs = _detect_languages(["main.go", "script.py", "app.ts"])
+        assert langs == {"go", "python", "typescript"}
+
+    def test_unknown_extensions(self):
+        assert _detect_languages(["README.md", "Makefile", ".env"]) == set()
+
+    def test_empty_list(self):
+        assert _detect_languages([]) == set()
+
+    def test_case_insensitive_extension(self):
+        # .PY and .py should both detect python
+        assert _detect_languages(["Script.PY"]) == {"python"}
+
+
+class TestBuildLanguageHints:
+    def test_python_hints_included(self):
+        hints = _build_language_hints(["app.py"])
+        assert "Python" in hints
+        assert "Mutable default" in hints
+
+    def test_go_hints_included(self):
+        hints = _build_language_hints(["main.go"])
+        assert "Go" in hints
+        assert "defer" in hints
+
+    def test_multiple_languages(self):
+        hints = _build_language_hints(["app.py", "handler.go"])
+        assert "Python" in hints
+        assert "Go" in hints
+
+    def test_no_hints_for_unknown_files(self):
+        hints = _build_language_hints(["README.md", "Makefile"])
+        assert hints == ""
+
+    def test_empty_files(self):
+        hints = _build_language_hints([])
+        assert hints == ""
+
+    def test_typescript_hints_included(self):
+        hints = _build_language_hints(["component.tsx"])
+        assert "Typescript" in hints
+        assert "any" in hints
+
+    def test_rust_hints_included(self):
+        hints = _build_language_hints(["lib.rs"])
+        assert "Rust" in hints
+        assert "unwrap" in hints
 
 
 class TestBuildSystemPrompt:
@@ -183,3 +251,40 @@ class TestReviewDiff:
 
         user_prompt = mock_provider.complete.call_args[0][1]
         assert "Auth module" in user_prompt
+
+    def test_injects_python_language_hints(self):
+        """review_diff should inject Python-specific hints for .py files."""
+        mock_provider = MagicMock()
+        mock_provider.complete.return_value = SAMPLE_REVIEW_RESPONSE
+
+        py_diff = DiffResult(
+            diff="diff --git a/main.py b/main.py\n+def f(x=[]):\n+    pass\n",
+            files_changed=["main.py"],
+            insertions=2,
+            deletions=0,
+            is_empty=False,
+        )
+
+        review_diff(diff=py_diff, provider=mock_provider)
+
+        system_prompt = mock_provider.complete.call_args[0][0]
+        assert "Python" in system_prompt
+        assert "Mutable default" in system_prompt
+
+    def test_no_language_hints_for_unknown_files(self):
+        """review_diff should not inject hints for files with unknown extensions."""
+        mock_provider = MagicMock()
+        mock_provider.complete.return_value = SAMPLE_REVIEW_RESPONSE
+
+        unknown_diff = DiffResult(
+            diff="diff --git a/config.yaml b/config.yaml\n+key: value\n",
+            files_changed=["config.yaml"],
+            insertions=1,
+            deletions=0,
+            is_empty=False,
+        )
+
+        review_diff(diff=unknown_diff, provider=mock_provider)
+
+        system_prompt = mock_provider.complete.call_args[0][0]
+        assert "Language-specific" not in system_prompt
