@@ -11,12 +11,15 @@ from critiq.reviewer import (
     ReviewResult,
     Severity,
     _build_language_hints,
+    _build_scan_prompt,
+    _build_scan_system_prompt,
     _build_system_prompt,
     _build_user_prompt,
     _detect_languages,
     _parse_review,
     _parse_severity,
     review_diff,
+    review_file_content,
 )
 
 
@@ -288,3 +291,77 @@ class TestReviewDiff:
 
         system_prompt = mock_provider.complete.call_args[0][0]
         assert "Language-specific" not in system_prompt
+
+
+class TestBuildScanPrompt:
+    def test_includes_file_path(self):
+        prompt = _build_scan_prompt("src/auth.py", "def login(): pass")
+        assert "src/auth.py" in prompt
+        assert "def login(): pass" in prompt
+
+    def test_truncates_large_content(self):
+        large_content = "x = 1\n" * 5000  # ~30KB
+        prompt = _build_scan_prompt("big.py", large_content)
+        assert "truncated" in prompt
+
+    def test_includes_context(self):
+        prompt = _build_scan_prompt("app.py", "code", context="Focus on auth")
+        assert "Focus on auth" in prompt
+
+    def test_no_context_when_none(self):
+        prompt = _build_scan_prompt("app.py", "code", context=None)
+        assert "Context" not in prompt
+
+
+class TestBuildScanSystemPrompt:
+    def test_includes_focus_description(self):
+        system = _build_scan_system_prompt("security")
+        assert "injection" in system.lower() or "security" in system.lower()
+
+    def test_audit_vs_review_framing(self):
+        system = _build_scan_system_prompt("all")
+        assert "audit" in system.lower()
+
+    def test_includes_language_hints(self):
+        system = _build_scan_system_prompt("all", language_hints="## Language-specific\n- test")
+        assert "Language-specific" in system
+
+
+class TestReviewFileContent:
+    def test_returns_review_result(self):
+        mock_provider = MagicMock()
+        mock_provider.complete.return_value = """## Summary
+This file looks clean.
+
+## Rating
+✅ Clean
+
+## Findings
+No significant issues found.
+"""
+        result = review_file_content(
+            file_path="auth.py",
+            content="def login(user, pw): return True",
+            provider=mock_provider,
+            focus="security",
+            model_label="claude/test",
+        )
+        assert isinstance(result, ReviewResult)
+        assert result.provider_model == "claude/test"
+        assert result.overall_rating == "✅ LGTM"
+
+    def test_passes_file_path_to_language_hints(self):
+        mock_provider = MagicMock()
+        mock_provider.complete.return_value = """## Summary\nOK\n\n## Rating\n✅ Clean\n\n## Findings\nNone.\n"""
+        review_file_content("main.py", "code", mock_provider)
+        system_prompt = mock_provider.complete.call_args[0][0]
+        assert "Python" in system_prompt
+
+    def test_uses_scan_system_prompt_not_diff_prompt(self):
+        mock_provider = MagicMock()
+        mock_provider.complete.return_value = """## Summary\nOK\n\n## Rating\n✅ Clean\n\n## Findings\nNone.\n"""
+        review_file_content("app.py", "x = 1", mock_provider)
+        system_prompt = mock_provider.complete.call_args[0][0]
+        assert "audit" in system_prompt.lower()
+        # Diff-review phrasing should NOT be there
+        assert "git diff" not in system_prompt.lower()
