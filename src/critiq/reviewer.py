@@ -354,6 +354,26 @@ def _parse_review(raw: str, model: str) -> ReviewResult:
     )
 
 
+def review_result_to_dict(result: ReviewResult) -> dict:
+    """Serialize a ReviewResult to a plain dict (for JSON output)."""
+    return {
+        "summary": result.summary,
+        "overall_rating": result.overall_rating,
+        "provider_model": result.provider_model,
+        "comments": [
+            {
+                "severity": c.severity.value,
+                "file": c.file,
+                "line": c.line,
+                "title": c.title,
+                "body": c.body,
+                "category": c.category,
+            }
+            for c in result.comments
+        ],
+    }
+
+
 def review_diff(
     diff: DiffResult,
     provider: LLMProvider,

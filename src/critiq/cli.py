@@ -19,7 +19,7 @@ from .git_utils import (
     is_git_repo,
 )
 from .providers import get_provider
-from .reviewer import Severity, review_diff
+from .reviewer import Severity, review_diff, review_result_to_dict
 
 console = Console()
 
@@ -43,6 +43,7 @@ def _do_review(
     model: str | None,
     context_text: str | None,
     raw: bool,
+    json_output: bool = False,
     project_config: CritiqConfig | None = None,
     fatal_on_error: bool = True,
 ) -> None:
@@ -95,13 +96,14 @@ def _do_review(
     if len(diff.files_changed) > 3:
         files_summary += f" (+{len(diff.files_changed) - 3} more)"
 
-    console.print(
-        f"[dim]Reviewing {mode_desc} · "
-        f"+{diff.insertions}/-{diff.deletions} lines · "
-        f"{files_summary}[/dim]"
-    )
-    console.print(f"[dim]Provider: {provider} · Focus: {focus}[/dim]")
-    console.print("[dim]Thinking...[/dim]")
+    if not json_output:
+        console.print(
+            f"[dim]Reviewing {mode_desc} · "
+            f"+{diff.insertions}/-{diff.deletions} lines · "
+            f"{files_summary}[/dim]"
+        )
+        console.print(f"[dim]Provider: {provider} · Focus: {focus}[/dim]")
+        console.print("[dim]Thinking...[/dim]")
 
     # Get provider
     try:
@@ -152,7 +154,15 @@ def _do_review(
         )
 
     # Output
-    if compact:
+    if json_output:
+        import json as _json
+
+        print(_json.dumps(review_result_to_dict(result), indent=2))
+        has_critical = any(c.severity.value == "critical" for c in result.comments)
+        if has_critical:
+            sys.exit(1)
+        return
+    elif compact:
         print_review_compact(result, console=console)
     else:
         print_review(result, console=console)
@@ -288,6 +298,13 @@ def _do_review(
     default=False,
     help="Print raw AI output (for debugging)",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Output findings as JSON (for IDE/tool integration)",
+)
 def main(
     mode: str,
     base_branch: str | None,
@@ -304,6 +321,7 @@ def main(
     watch: bool,
     debounce: float,
     raw: bool,
+    json_output: bool,
 ) -> None:
     """AI-powered local code reviewer — catch issues before you push.
 
@@ -370,6 +388,7 @@ def main(
                 model=model,
                 context_text=context_text,
                 raw=raw,
+                json_output=False,  # json_output doesn't make sense in watch mode
                 project_config=project_config,
                 fatal_on_error=False,
             )
@@ -398,5 +417,6 @@ def main(
         model=model,
         context_text=context_text,
         raw=raw,
+        json_output=json_output,
         project_config=project_config,
     )

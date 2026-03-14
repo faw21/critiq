@@ -69,7 +69,7 @@ class TestCLIBasic:
     def test_version(self):
         result = _run_cli(["--version"])
         assert result.exit_code == 0
-        assert "1.2.0" in result.output
+        assert "1.4.0" in result.output
 
     def test_help(self):
         result = _run_cli(["--help"])
@@ -120,6 +120,63 @@ class TestStagedMode:
             mock_get_provider.return_value = MagicMock()
             result = _run_cli()
         assert result.exit_code == 0
+
+
+class TestJSONOutput:
+    def test_json_output_structure(self):
+        """--json outputs valid JSON with expected keys."""
+        import json
+
+        with patch("critiq.cli.is_git_repo", return_value=True), \
+             patch("critiq.cli.get_staged_diff", return_value=SAMPLE_DIFF), \
+             patch("critiq.cli.get_provider") as mock_get_provider, \
+             patch("critiq.cli.review_diff", return_value=CRITICAL_RESULT):
+            mock_get_provider.return_value = MagicMock()
+            result = _run_cli(["--json"])
+
+        data = json.loads(result.output)
+        assert "summary" in data
+        assert "overall_rating" in data
+        assert "comments" in data
+        assert isinstance(data["comments"], list)
+
+    def test_json_output_critical_exits_1(self):
+        """--json exits with code 1 when CRITICAL issues found."""
+        with patch("critiq.cli.is_git_repo", return_value=True), \
+             patch("critiq.cli.get_staged_diff", return_value=SAMPLE_DIFF), \
+             patch("critiq.cli.get_provider") as mock_get_provider, \
+             patch("critiq.cli.review_diff", return_value=CRITICAL_RESULT):
+            mock_get_provider.return_value = MagicMock()
+            result = _run_cli(["--json"])
+
+        assert result.exit_code == 1
+
+    def test_json_output_clean_exits_0(self):
+        """--json exits with code 0 for clean reviews."""
+        with patch("critiq.cli.is_git_repo", return_value=True), \
+             patch("critiq.cli.get_staged_diff", return_value=SAMPLE_DIFF), \
+             patch("critiq.cli.get_provider") as mock_get_provider, \
+             patch("critiq.cli.review_diff", return_value=CLEAN_RESULT):
+            mock_get_provider.return_value = MagicMock()
+            result = _run_cli(["--json"])
+
+        assert result.exit_code == 0
+
+    def test_json_comment_fields(self):
+        """Each comment in --json has all required fields."""
+        import json
+
+        with patch("critiq.cli.is_git_repo", return_value=True), \
+             patch("critiq.cli.get_staged_diff", return_value=SAMPLE_DIFF), \
+             patch("critiq.cli.get_provider") as mock_get_provider, \
+             patch("critiq.cli.review_diff", return_value=CRITICAL_RESULT):
+            mock_get_provider.return_value = MagicMock()
+            result = _run_cli(["--json"])
+
+        data = json.loads(result.output)
+        comment = data["comments"][0]
+        for field in ("severity", "file", "line", "title", "body", "category"):
+            assert field in comment
 
 
 class TestDiffMode:
