@@ -75,9 +75,8 @@ class TestGetStagedDiff:
     def test_raises_on_git_error(self):
         with patch("critiq.git_utils._run_git") as mock_git:
             mock_git.side_effect = RuntimeError("not a git repo")
-
-        with pytest.raises(RuntimeError, match="Failed to get staged diff"):
-            get_staged_diff()
+            with pytest.raises(RuntimeError, match="Failed to get staged diff"):
+                get_staged_diff()
 
 
 class TestGetBranchDiff:

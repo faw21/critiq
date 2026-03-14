@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .config import CritiqConfig
 from .git_utils import DiffResult
 from .providers import LLMProvider
 
@@ -48,13 +49,31 @@ FOCUS_DESCRIPTIONS = {
 }
 
 
-def _build_system_prompt(focus: str) -> str:
+def _build_system_prompt(focus: str, config: CritiqConfig | None = None) -> str:
     focus_desc = FOCUS_DESCRIPTIONS.get(focus, FOCUS_DESCRIPTIONS["all"])
+
+    # Build project-specific additions
+    project_section = ""
+    if config and not config.is_empty():
+        parts = []
+        if config.ignore_patterns:
+            ignore_list = "\n".join(f"  - {p}" for p in config.ignore_patterns)
+            parts.append(
+                f"## Project preferences — DO NOT flag these:\n{ignore_list}"
+            )
+        if config.custom_rules:
+            rules_list = "\n".join(f"  - {r}" for r in config.custom_rules)
+            parts.append(
+                f"## Project-specific rules — ALWAYS check these:\n{rules_list}"
+            )
+        if parts:
+            project_section = "\n\n" + "\n\n".join(parts)
+
     return f"""You are an expert code reviewer with deep experience in software engineering, security, and performance optimization.
 
 Your task: review a git diff and provide actionable, specific feedback.
 
-Focus areas: {focus_desc}
+Focus areas: {focus_desc}{project_section}
 
 Output format — respond with EXACTLY this structure:
 
@@ -236,9 +255,10 @@ def review_diff(
     focus: str = "all",
     context: str | None = None,
     model_label: str = "unknown",
+    config: CritiqConfig | None = None,
 ) -> ReviewResult:
     """Run AI review on a diff and return structured results."""
-    system = _build_system_prompt(focus)
+    system = _build_system_prompt(focus, config=config)
     user = _build_user_prompt(diff, context)
 
     raw = provider.complete(system, user)

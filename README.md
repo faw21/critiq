@@ -57,6 +57,9 @@ critiq --fix
 # Review and automatically apply all fixes (no prompts)
 critiq --fix-all
 
+# Watch mode: auto-review when staged files change
+critiq --watch
+
 # Review all changes vs main branch
 critiq --diff main
 
@@ -128,6 +131,67 @@ Apply this fix? [Y/n]  y
 - `--fix` — interactive mode (prompts for each file)
 - `--fix-all` — auto-apply all fixes without prompting
 - `--fix-severity warning` — also fix WARNING issues (default: CRITICAL + WARNING)
+
+## Watch Mode (v1.1)
+
+`critiq --watch` monitors your working directory and automatically re-runs a review every time your staged files change.
+
+```bash
+# Start watch mode: reviews run automatically when you git add
+critiq --watch
+
+# Watch with a specific focus
+critiq --watch --focus security
+
+# Adjust re-run delay (default: 2s after last change)
+critiq --watch --debounce 5
+
+# For faster file detection (optional):
+pip install 'critiq[watch]'   # adds watchfiles for inotify/FSEvents support
+```
+
+This is useful when you're iterating on a feature: stage your changes and immediately get feedback, without leaving the terminal.
+
+## Project Preferences (`critiq-learn`)
+
+Teach critiq your project's conventions so it stops flagging things you don't care about — and always checks the things you do.
+
+```bash
+# Don't flag these (project uses JS, type hints not required)
+critiq-learn ignore "Missing type annotations"
+critiq-learn ignore "No docstrings on private methods"
+
+# Always check these extra rules
+critiq-learn rule "Never use raw SQL strings — always use parameterized queries"
+critiq-learn rule "All API endpoints must have rate limiting"
+
+# Set project defaults
+critiq-learn set focus security         # always focus on security
+critiq-learn set provider ollama        # use local LLM by default
+
+# Show current config
+critiq-learn show
+
+# Remove an ignore rule
+critiq-learn unignore "Missing type annotations"
+
+# Reset everything
+critiq-learn reset
+```
+
+Preferences are saved to `.critiq.yaml` in your project root. critiq automatically picks it up on every run:
+
+```yaml
+# .critiq.yaml (example)
+ignore_patterns:
+  - Missing type annotations
+  - No docstrings on private methods
+custom_rules:
+  - Never use raw SQL strings — always use parameterized queries
+default_focus: security
+```
+
+Add `.critiq.yaml` to git to share project preferences with your team.
 
 ## Focus Areas
 
