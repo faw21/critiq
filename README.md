@@ -116,6 +116,32 @@ chmod +x .git/hooks/pre-push
 
 Now every `git push` automatically runs a security review. The push is blocked only if CRITICAL issues are found.
 
+## GitHub Actions (CI)
+
+Add AI code review to every pull request with [critiq-action](https://github.com/faw21/critiq-action):
+
+```yaml
+# .github/workflows/critiq.yml
+name: critiq Code Review
+on:
+  pull_request:
+    branches: [main, master]
+permissions:
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: faw21/critiq-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+See [critiq-action](https://github.com/faw21/critiq-action) for full configuration options.
+
 ## Providers
 
 | Provider | Command | Notes |
@@ -165,6 +191,7 @@ changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 
 ## Related Tools
 
+- [critiq-action](https://github.com/faw21/critiq-action) — GitHub Action: run critiq in CI on every PR
 - [gitbrief](https://github.com/faw21/gitbrief) — git-history-aware context packer for LLMs
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
 - [standup-ai](https://github.com/faw21/standup-ai) — daily standup from git commits
