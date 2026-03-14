@@ -37,6 +37,8 @@ Reviewing staged changes · +28/-6 lines · src/auth.py, src/db.py
 pip install critiq
 ```
 
+**VS Code extension:** install [critiq for VS Code](https://github.com/faw21/critiq-vscode) for inline diagnostics, status bar, and `Cmd+Shift+R` shortcut.
+
 Set your API key (or use Ollama for zero-cost local review):
 
 ```bash
@@ -369,6 +371,7 @@ critiq-report --commits 20
 
 ## Related Tools
 
+- [critiq-vscode](https://github.com/faw21/critiq-vscode) — VS Code extension: inline diagnostics + status bar + `Cmd+Shift+R`
 - [critiq-action](https://github.com/faw21/critiq-action) — GitHub Action: run critiq in CI on every PR
 - [gitbrief](https://github.com/faw21/gitbrief) — git-history-aware context packer for LLMs
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
