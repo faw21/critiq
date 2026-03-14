@@ -444,8 +444,6 @@ code --install-extension critiq.vsix
 - [git-chronicle](https://github.com/faw21/chronicle) — AI git history narrator (understand WHY code changed)
 - [testfix](https://github.com/faw21/testfix) — AI failing test auto-fixer
 
-- [mergefix](https://github.com/faw21/mergefix) — AI merge conflict resolver: fix all conflicts with one command
-
 ## License
 
 MIT
