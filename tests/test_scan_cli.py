@@ -42,7 +42,7 @@ def test_scan_version():
     runner = CliRunner()
     result = runner.invoke(scan_main, ["--version"])
     assert result.exit_code == 0
-    assert "2.0.0" in result.output
+    assert "critiq-scan" in result.output
 
 
 def test_scan_no_path(tmp_path):

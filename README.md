@@ -402,6 +402,46 @@ changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 critiq-report --commits 20
 ```
 
+## Full-File Scanning (`critiq-scan`) (v2.0)
+
+While `critiq` reviews *git diffs*, `critiq-scan` audits **complete files and directories** — perfect for security audits, onboarding new codebases, or reviewing legacy code.
+
+```bash
+# Scan current directory (auto-discovers source files)
+critiq-scan
+
+# Security audit of a specific directory
+critiq-scan src/ --focus security
+
+# Scan specific files
+critiq-scan auth.py utils.py
+
+# Only show critical issues
+critiq-scan . --include "*.py" --severity critical
+
+# Summary table (no detailed findings)
+critiq-scan . --summary
+
+# Machine-readable JSON (for CI/scripts)
+critiq-scan . --json
+
+# Limit scope
+critiq-scan . --max-files 10 --exclude "tests/*"
+```
+
+**How it differs from `critiq`:**
+
+| | `critiq` | `critiq-scan` |
+|---|---|---|
+| Input | Git diff / staged changes | Full file contents |
+| Use case | Pre-commit review | Security audits, new codebases |
+| Output | Per-diff findings | Per-file findings |
+| File discovery | git-tracked files | Recursive directory walk |
+
+**Supported file types:** `.py`, `.js`, `.ts`, `.tsx`, `.go`, `.rs`, `.rb`, `.java`, `.kt`, `.c`, `.cpp`, `.cs`, `.php`, `.swift`, `.sh`, `.yaml`, `.toml`, `.tf`, and more.
+
+**Exit code:** 0 if no critical issues, 1 if any critical issues found (CI-friendly).
+
 ## VS Code Extension
 
 [critiq-vscode](https://github.com/faw21/critiq-vscode) brings critiq directly into your editor:
