@@ -166,6 +166,7 @@ changelog-ai --from v0.1.0 --prepend CHANGELOG.md
 - [gpr](https://github.com/faw21/gpr) — AI commit messages + PR descriptions
 - [standup-ai](https://github.com/faw21/standup-ai) — daily standup from git commits
 - [changelog-ai](https://github.com/faw21/changelog-ai) — AI-generated CHANGELOG
+- [git-chronicle](https://github.com/faw21/chronicle) — AI git history narrator (understand WHY code changed)
 
 ## License
 

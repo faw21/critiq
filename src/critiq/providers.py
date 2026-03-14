@@ -67,7 +67,7 @@ class OpenAIProvider(LLMProvider):
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            max_tokens=4096,
+            max_completion_tokens=4096,
         )
         return response.choices[0].message.content or ""
 
